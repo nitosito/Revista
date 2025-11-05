@@ -1,13 +1,10 @@
-/* Archivo: script.js
-   Flipbook sin librerías externas. Convierte PDF a imágenes con PDF.js y arma “hojas” que se voltean.
-*/
-
+/* Flipbook sin librerías externas: PDF -> imágenes con PDF.js, luego animación CSS de “pasar página”. */
 const PDF_FILE = "magazine.pdf";
 
 /* PDF.js worker */
 const PDFJS_VERSION = "3.11.174";
 const workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-// Nota: pdf.min.js expone window.pdfjsLib
+// pdf.min.js expone window.pdfjsLib
 const pdfjsLib = window.pdfjsLib;
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
@@ -25,11 +22,11 @@ const PDF_URL = `${PDF_FILE}?v=${CACHE_BUSTER}`;
 downloadEl.href = PDF_URL;
 
 /* Estado del flipbook */
-let currentSheet = 0; // cuántas hojas han sido volteadas
-let totalSheets = 0;  // cantidad total de hojas (cada hoja = 2 páginas)
+let currentSheet = 0; // cuántas hojas se voltearon
+let totalSheets = 0;  // total de hojas (cada hoja = 2 páginas)
 let sheets = [];      // nodos .sheet
 
-/* Utilidad: renderiza una página PDF a imagen (DataURL) */
+/* Renderiza una página PDF a imagen (DataURL) */
 async function renderPageToImage(page, targetWidth = 1200) {
   const initialViewport = page.getViewport({ scale: 1 });
   const scale = Math.min(targetWidth / initialViewport.width, 2.5);
@@ -68,10 +65,9 @@ function buildFlipbook(images) {
     const [rightImg, leftImg] = pairs[i];
     const sheet = document.createElement("div");
     sheet.className = "sheet";
-    // Mayor z-index al inicio para las primeras hojas
-    sheet.style.zIndex = String(1000 - i);
+    sheet.style.zIndex = String(1000 - i); // más arriba al inicio
 
-    // Cara frontal (derecha): muestra página i*2
+    // Cara frontal (derecha)
     const front = document.createElement("div");
     front.className = "face front";
     const imgR = document.createElement("img");
@@ -79,7 +75,7 @@ function buildFlipbook(images) {
     imgR.src = rightImg;
     front.appendChild(imgR);
 
-    // Cara trasera (izquierda): muestra página i*2 + 1
+    // Cara trasera (izquierda)
     const back = document.createElement("div");
     back.className = "face back";
     if (leftImg) {
@@ -88,7 +84,6 @@ function buildFlipbook(images) {
       imgL.src = leftImg;
       back.appendChild(imgL);
     } else {
-      // Si no hay página par, deja el dorso en blanco
       back.style.background = "#f3f4f6";
     }
 
@@ -108,9 +103,9 @@ function flipNext() {
   const sheet = sheets[currentSheet];
   sheet.classList.add("flipped");
 
-  // Cuando se voltea, mándala al fondo tras la animación para no tapar las siguientes
+  // Tras la animación, envía la hoja al fondo
   setTimeout(() => {
-    sheet.style.zIndex = String(10 + currentSheet); // menor z-index al fondo
+    sheet.style.zIndex = String(10 + currentSheet);
   }, 800);
 
   currentSheet++;
@@ -121,10 +116,7 @@ function flipPrev() {
   if (currentSheet <= 0) return;
   const sheet = sheets[currentSheet - 1];
   sheet.classList.remove("flipped");
-
-  // Sube z-index para que vuelva a estar encima
   sheet.style.zIndex = String(1000 - (currentSheet - 1));
-
   currentSheet--;
   updateButtons();
 }
@@ -137,7 +129,7 @@ function updateButtons() {
 /* Carga el PDF, convierte páginas a imágenes y crea el flipbook */
 async function init() {
   try {
-    // Comprobación rápida de existencia
+    // Comprobación rápida
     const head = await fetch(PDF_URL, { method: "HEAD", cache: "no-store" });
     const ct = (head.headers.get("content-type") || "").toLowerCase();
     if (!head.ok || !ct.includes("pdf")) {
@@ -152,7 +144,6 @@ async function init() {
     const pdf = await loadingTask.promise;
 
     const images = [];
-    // Render secuencial para uso de memoria contenido
     const targetW = window.innerWidth > 1024 ? 1400 : 1000;
 
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -168,7 +159,7 @@ async function init() {
     btnNext.addEventListener("click", flipNext);
     btnPrev.addEventListener("click", flipPrev);
 
-    // Click zonas: derecha avanza, izquierda retrocede
+    // Click en zonas: derecha avanza, izquierda retrocede
     bookEl.addEventListener("click", (e) => {
       const rect = bookEl.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -182,7 +173,6 @@ async function init() {
       if (e.key === "ArrowLeft") flipPrev();
     });
 
-    // Oculta loader
     loaderEl.style.display = "none";
   } catch (err) {
     console.error(err);
