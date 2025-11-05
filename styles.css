@@ -5,6 +5,9 @@
   --muted: #9aa0a6;
   --accent: #58a6ff;
   --border: #2a2f3a;
+
+  --edge-bg: linear-gradient(90deg, rgba(0,0,0,0.0), rgba(0,0,0,0.25));
+  --edge-bg-r: linear-gradient(270deg, rgba(0,0,0,0.0), rgba(0,0,0,0.25));
 }
 
 * { box-sizing: border-box; }
@@ -29,6 +32,11 @@ body {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
 h1 {
   font-size: 20px;
@@ -45,6 +53,7 @@ h1 {
   font-weight: 600;
   border: 1px solid rgba(0,0,0,0.2);
   cursor: pointer;
+  user-select: none;
 }
 .btn.secondary {
   background: transparent;
@@ -58,23 +67,36 @@ h1 {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px;
-  min-height: 60vh;
+  min-height: 70vh;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   place-items: center;
   overflow: hidden;
 }
 
-/* Libro (flipbook) */
-.book {
+.page-indicator {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  backdrop-filter: blur(2px);
+  z-index: 20;
+}
+
+/* Viewport con scroll y zoom (escritorio) */
+.viewport {
   position: relative;
   width: min(100%, 980px);
-  height: calc(100vh - 260px);
+  height: calc(100vh - 320px);
   max-height: 900px;
-  aspect-ratio: 3 / 2;
-  perspective: 2000px;
+  overflow: auto;
   border-radius: 10px;
-  overflow: visible;
   box-shadow:
     0 10px 30px rgba(0,0,0,0.35),
     0 1px 0 1px rgba(255,255,255,0.03) inset,
@@ -83,8 +105,19 @@ h1 {
     linear-gradient(90deg, rgba(0,0,0,0.08), rgba(255,255,255,0.04) 50%, rgba(0,0,0,0.08)),
     #0e1218;
 }
+.book {
+  position: relative;
+  width: min(100%, 980px);
+  height: calc(100vh - 320px);
+  max-height: 900px;
+  aspect-ratio: 3 / 2;
+  perspective: 2000px;
+  border-radius: 10px;
+  overflow: visible;
+  transform-origin: 50% 50%;
+}
 
-/* “Hoja” (dos páginas: frente = derecha, dorso = izquierda) */
+/* Hoja (dos páginas: frente = derecha, dorso = izquierda) */
 .sheet {
   position: absolute;
   top: 0;
@@ -111,14 +144,12 @@ h1 {
   display: grid;
   place-items: center;
 }
-
 .face img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #fff;
 }
-
 .face.back {
   transform: rotateY(180deg);
   border-left: none;
@@ -133,12 +164,61 @@ h1 {
   transform: rotateY(-180deg);
 }
 
-/* Controles */
+/* Edge nav (botones grandes en los bordes) */
+.edge {
+  position: absolute;
+  top: 0;
+  width: 14%;
+  min-width: 48px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: clamp(24px, 6vw, 48px);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 25;
+  transition: background 0.2s ease;
+}
+.edge-prev { left: 0; background-image: var(--edge-bg); background-repeat: no-repeat; background-size: 100% 100%; }
+.edge-next { right: 0; background-image: var(--edge-bg-r); background-repeat: no-repeat; background-size: 100% 100%; }
+.edge:hover { background-color: rgba(0,0,0,0.15); }
+
+/* Controles inferiores */
 .controls {
   display: flex;
   gap: 8px;
   align-items: center;
   justify-content: center;
+}
+
+/* Miniaturas */
+.thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px;
+  width: 100%;
+  max-width: 980px;
+  border-top: 1px solid var(--border);
+}
+.thumb {
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: #111;
+  cursor: pointer;
+}
+.thumb img {
+  display: block;
+  height: 80px;
+  width: auto;
+}
+.thumb.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88,166,255,0.3);
 }
 
 .loader {
@@ -151,6 +231,7 @@ h1 {
   font-weight: 500;
   letter-spacing: 0.2px;
   backdrop-filter: blur(2px);
+  z-index: 30;
 }
 
 .error {
@@ -161,17 +242,35 @@ h1 {
   border-radius: 10px;
 }
 
-.footer {
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 12px;
+/* Modo una página (móvil): ocultamos el doble y usamos #single */
+.single {
+  width: min(100%, 680px);
+  height: calc(100vh - 320px);
+  max-height: 900px;
+  border-radius: 10px;
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.35),
+    0 1px 0 1px rgba(255,255,255,0.03) inset,
+    0 0 0 1px rgba(255,255,255,0.04);
+  background: #0e1218;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+}
+.single img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: 50% 50%;
 }
 
-/* Móvil: modo vertical (una página visible) */
-@media (max-width: 768px) {
-  .book {
-    width: 100%;
-    height: calc(100vh - 280px);
-    aspect-ratio: 3 / 4;
+/* Responsivo */
+@media (max-width: 900px) {
+  .viewport, .book, .single {
+    height: calc(100vh - 340px);
   }
+}
+@media (max-width: 768px) {
+  .edge { width: 18%; }
+  .thumb img { height: 64px; }
 }
