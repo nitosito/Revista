@@ -2,24 +2,10 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Revista Yeison</title>
     <meta name="description" content="Revista con efecto de pasar página y descarga" />
-
-    <!-- Favicon para evitar 404 en consola -->
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-
-    <!-- PageFlip (CSS) desde jsDelivr -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/page-flip@2.4.1/dist/css/page-flip.css"
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    />
-
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -30,12 +16,15 @@
       </header>
 
       <section id="viewer-wrapper" class="viewer-wrapper">
-        <div id="flipbook" class="flipbook" aria-label="Visor de revista"></div>
-        <div id="loader" class="loader">Cargando revista…</div>
-        <div id="error" class="error" hidden>
-          No se pudo cargar el PDF. Revisa que <strong>magazine.pdf</strong> exista en la raíz del
-          repositorio o que no pese demasiado.
+        <div id="book" class="book" aria-label="Visor de revista"></div>
+
+        <div class="controls">
+          <button id="prev" class="btn secondary" aria-label="Página anterior">← Anterior</button>
+          <button id="next" class="btn" aria-label="Página siguiente">Siguiente →</button>
         </div>
+
+        <div id="loader" class="loader">Cargando revista…</div>
+        <div id="error" class="error" hidden></div>
       </section>
 
       <footer class="footer">
@@ -45,24 +34,8 @@
       </footer>
     </main>
 
-    <!-- PDF.js -->
+    <!-- PDF.js (solo el visor; el worker lo apunta script.js) -->
     <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-
-    <!-- PageFlip (UMD) desde jsDelivr -->
-    <script
-      src="https://cdn.jsdelivr.net/npm/page-flip@2.4.1/dist/js/page-flip.browser.min.js"
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    ></script>
-
-    <!-- Fallback opcional a unpkg si el CDN principal falla -->
-    <script>
-      if (!(window.St && window.St.PageFlip)) {
-        document.write('<script src="https://unpkg.com/page-flip@2.4.1/dist/js/page-flip.browser.min.js"><\\/script>');
-      }
-    </script>
-
-    <!-- Tu script -->
     <script src="./script.js"></script>
   </body>
 </html>
