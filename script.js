@@ -1,10 +1,12 @@
 /* Configuración base */
 const PDF_FILE = "magazine.pdf";
 
-/* PDF.js worker (obligatorio indicar ruta del worker) */
+/* PDF.js worker */
 const PDFJS_VERSION = "3.11.174";
 const workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-const pdfjsLib = window["pdfjs-dist/build/pdf"];
+
+// Importante: la variable global correcta expuesta por pdf.min.js es "pdfjsLib"
+const pdfjsLib = window.pdfjsLib;
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 /* Elementos UI */
@@ -13,41 +15,88 @@ const errorEl = document.getElementById("error");
 const flipbookEl = document.getElementById("flipbook");
 const downloadEl = document.getElementById("download");
 
-/* Cache-buster para que al reemplazar magazine.pdf se vea al instante */
+/* Cache-buster */
 const CACHE_BUSTER = Date.now();
-const PDF_URL = `${PDF_FILE}?v=${CACHE_BUSTER}`;
-downloadEl.href = `${PDF_FILE}?v=${CACHE_BUSTER}`;
 
-/* Utilidad: renderiza una página PDF a imagen (DataURL) */
+function pdfUrl(withBuster = true) {
+  return withBuster ? `${PDF_FILE}?v=${CACHE_BUSTER}` : PDF_FILE;
+}
+
+downloadEl.href = pdfUrl(true);
+
+/* HEAD helper para comprobar existencia y tipo */
+async function headOk(url) {
+  try {
+    const res = await fetch(url, { method: "HEAD", cache: "no-store" });
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    console.log("HEAD", url, res.status, ct);
+    return { ok: res.ok, status: res.status, contentType: ct };
+  } catch (e) {
+    console.warn("HEAD failed", url, e);
+    return { ok: false, status: 0, contentType: "" };
+  }
+}
+
+async function resolvePdfUrl() {
+  const first = pdfUrl(true);
+  const h1 = await headOk(first);
+  if (h1.ok && h1.contentType.includes("pdf")) return first;
+
+  const second = pdfUrl(false);
+  const h2 = await headOk(second);
+  if (h2.ok && h2.contentType.includes("pdf")) {
+    // Ajusta también el botón de descarga si el buster falló
+    downloadEl.href = second;
+    return second;
+  }
+
+  let reason = "No se encontró magazine.pdf.";
+  if (h1.status === 404 && h2.status === 404) {
+    reason = "404: magazine.pdf no está en la misma carpeta que index.html o el nombre no coincide (respeta mayúsculas/minúsculas).";
+  } else if (!h1.ok && !h2.ok) {
+    reason = "No se pudo consultar el archivo (conexión o publicación de GitHub Pages aún en progreso).";
+  } else if (!(h1.contentType + h2.contentType).includes("pdf")) {
+    reason = "El servidor no está devolviendo application/pdf (¿archivo subido con Git LFS o extensión incorrecta?).";
+  }
+
+  throw new Error(reason);
+}
+
+/* Renderiza una página PDF a imagen (DataURL) */
 async function renderPageToImage(page, targetWidth = 1200) {
-  // Calcula escala según el ancho deseado
   const initialViewport = page.getViewport({ scale: 1 });
-  const scale = Math.min(targetWidth / initialViewport.width, 2.5); // limita escala máx. por memoria
+  const scale = Math.min(targetWidth / initialViewport.width, 2.5);
   const viewport = page.getViewport({ scale });
 
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: false });
+  const ctx = canvas.getContext("2d", { alpha: false });
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
 
   await page.render({ canvasContext: ctx, viewport }).promise;
 
-  // WEBP suele ser más ligero que PNG; si Safari antiguo da problema, cambiar a "image/jpeg"
+  // WEBP suele ser más ligero; si Safari antiguo falla, cambia a "image/jpeg"
   const dataUrl = canvas.toDataURL("image/webp", 0.92);
-  // Limpia canvas para liberar memoria
+
   canvas.width = 0;
   canvas.height = 0;
 
   return { dataUrl, width: viewport.width, height: viewport.height };
 }
 
-/* Carga el PDF, convierte sus páginas a imágenes y crea el flipbook */
+/* Carga el PDF, convierte páginas a imágenes y crea el flipbook */
 async function init() {
   try {
-    const loadingTask = pdfjsLib.getDocument(PDF_URL);
+    const url = await resolvePdfUrl();
+    console.log("Usando PDF:", url);
+
+    const loadingTask = pdfjsLib.getDocument({
+      url,
+      disableStream: true,
+      disableAutoFetch: true
+    });
     const pdf = await loadingTask.promise;
 
-    // Render secuencial para evitar picos de memoria
     const images = [];
     let firstSize = { width: 800, height: 1100 };
 
@@ -55,15 +104,10 @@ async function init() {
       const page = await pdf.getPage(i);
       const img = await renderPageToImage(page, window.innerWidth > 1024 ? 1400 : 1000);
       images.push(img.dataUrl);
-      if (i === 1) {
-        firstSize = { width: img.width, height: img.height };
-      }
-
-      // Pequeño yield para no bloquear la UI en PDFs largos
+      if (i === 1) firstSize = { width: img.width, height: img.height };
       await new Promise((r) => setTimeout(r, 0));
     }
 
-    // Inicializa PageFlip
     const usePortrait = window.innerWidth < 900;
     const flip = new St.PageFlip(flipbookEl, {
       width: Math.min(firstSize.width, 900),
@@ -82,22 +126,17 @@ async function init() {
     });
 
     flip.loadFromImages(images);
-
-    // Oculta loader
     loaderEl.style.display = "none";
 
-    // Accesibilidad básica con teclado
     document.addEventListener("keydown", (e) => {
       if (e.key === "ArrowRight") flip.flipNext();
       if (e.key === "ArrowLeft") flip.flipPrev();
     });
 
-    // Reajusta en rotación móvil
     window.addEventListener("orientationchange", () => {
       setTimeout(() => flip.update(), 250);
     });
     window.addEventListener("resize", () => {
-      // Evita recálculos excesivos
       clearTimeout(window.__flipResizeTimer);
       window.__flipResizeTimer = setTimeout(() => flip.update(), 150);
     });
@@ -105,6 +144,7 @@ async function init() {
     console.error(err);
     loaderEl.style.display = "none";
     errorEl.hidden = false;
+    errorEl.innerHTML = `No se pudo cargar el PDF. Detalle: ${err?.message || err}`;
   }
 }
 
