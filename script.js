@@ -1,68 +1,35 @@
-/* Configuración base */
+/* Archivo: script.js
+   Flipbook sin librerías externas. Convierte PDF a imágenes con PDF.js y arma “hojas” que se voltean.
+*/
+
 const PDF_FILE = "magazine.pdf";
 
 /* PDF.js worker */
 const PDFJS_VERSION = "3.11.174";
 const workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-
-// Importante: la variable global correcta expuesta por pdf.min.js es "pdfjsLib"
+// Nota: pdf.min.js expone window.pdfjsLib
 const pdfjsLib = window.pdfjsLib;
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 /* Elementos UI */
 const loaderEl = document.getElementById("loader");
 const errorEl = document.getElementById("error");
-const flipbookEl = document.getElementById("flipbook");
+const bookEl = document.getElementById("book");
 const downloadEl = document.getElementById("download");
+const btnPrev = document.getElementById("prev");
+const btnNext = document.getElementById("next");
 
-/* Cache-buster */
+/* Cache-buster para evitar caché cuando reemplaces el PDF */
 const CACHE_BUSTER = Date.now();
+const PDF_URL = `${PDF_FILE}?v=${CACHE_BUSTER}`;
+downloadEl.href = PDF_URL;
 
-function pdfUrl(withBuster = true) {
-  return withBuster ? `${PDF_FILE}?v=${CACHE_BUSTER}` : PDF_FILE;
-}
+/* Estado del flipbook */
+let currentSheet = 0; // cuántas hojas han sido volteadas
+let totalSheets = 0;  // cantidad total de hojas (cada hoja = 2 páginas)
+let sheets = [];      // nodos .sheet
 
-downloadEl.href = pdfUrl(true);
-
-/* HEAD helper para comprobar existencia y tipo */
-async function headOk(url) {
-  try {
-    const res = await fetch(url, { method: "HEAD", cache: "no-store" });
-    const ct = (res.headers.get("content-type") || "").toLowerCase();
-    console.log("HEAD", url, res.status, ct);
-    return { ok: res.ok, status: res.status, contentType: ct };
-  } catch (e) {
-    console.warn("HEAD failed", url, e);
-    return { ok: false, status: 0, contentType: "" };
-  }
-}
-
-async function resolvePdfUrl() {
-  const first = pdfUrl(true);
-  const h1 = await headOk(first);
-  if (h1.ok && h1.contentType.includes("pdf")) return first;
-
-  const second = pdfUrl(false);
-  const h2 = await headOk(second);
-  if (h2.ok && h2.contentType.includes("pdf")) {
-    // Ajusta también el botón de descarga si el buster falló
-    downloadEl.href = second;
-    return second;
-  }
-
-  let reason = "No se encontró magazine.pdf.";
-  if (h1.status === 404 && h2.status === 404) {
-    reason = "404: magazine.pdf no está en la misma carpeta que index.html o el nombre no coincide (respeta mayúsculas/minúsculas).";
-  } else if (!h1.ok && !h2.ok) {
-    reason = "No se pudo consultar el archivo (conexión o publicación de GitHub Pages aún en progreso).";
-  } else if (!(h1.contentType + h2.contentType).includes("pdf")) {
-    reason = "El servidor no está devolviendo application/pdf (¿archivo subido con Git LFS o extensión incorrecta?).";
-  }
-
-  throw new Error(reason);
-}
-
-/* Renderiza una página PDF a imagen (DataURL) */
+/* Utilidad: renderiza una página PDF a imagen (DataURL) */
 async function renderPageToImage(page, targetWidth = 1200) {
   const initialViewport = page.getViewport({ scale: 1 });
   const scale = Math.min(targetWidth / initialViewport.width, 2.5);
@@ -74,72 +41,149 @@ async function renderPageToImage(page, targetWidth = 1200) {
   canvas.height = Math.floor(viewport.height);
 
   await page.render({ canvasContext: ctx, viewport }).promise;
-
-  // WEBP suele ser más ligero; si Safari antiguo falla, cambia a "image/jpeg"
   const dataUrl = canvas.toDataURL("image/webp", 0.92);
 
+  // libera memoria
   canvas.width = 0;
   canvas.height = 0;
 
   return { dataUrl, width: viewport.width, height: viewport.height };
 }
 
+/* Construye el flipbook a partir de una lista de imágenes */
+function buildFlipbook(images) {
+  // Limpia
+  bookEl.innerHTML = "";
+  sheets = [];
+
+  // Empareja páginas de a dos (frente/dorso)
+  const pairs = [];
+  for (let i = 0; i < images.length; i += 2) {
+    pairs.push([images[i], images[i + 1] || null]);
+  }
+  totalSheets = pairs.length;
+
+  // Crea hojas apiladas (la primera arriba con mayor z-index)
+  for (let i = 0; i < totalSheets; i++) {
+    const [rightImg, leftImg] = pairs[i];
+    const sheet = document.createElement("div");
+    sheet.className = "sheet";
+    // Mayor z-index al inicio para las primeras hojas
+    sheet.style.zIndex = String(1000 - i);
+
+    // Cara frontal (derecha): muestra página i*2
+    const front = document.createElement("div");
+    front.className = "face front";
+    const imgR = document.createElement("img");
+    imgR.alt = `Página ${i * 2 + 1}`;
+    imgR.src = rightImg;
+    front.appendChild(imgR);
+
+    // Cara trasera (izquierda): muestra página i*2 + 1
+    const back = document.createElement("div");
+    back.className = "face back";
+    if (leftImg) {
+      const imgL = document.createElement("img");
+      imgL.alt = `Página ${i * 2 + 2}`;
+      imgL.src = leftImg;
+      back.appendChild(imgL);
+    } else {
+      // Si no hay página par, deja el dorso en blanco
+      back.style.background = "#f3f4f6";
+    }
+
+    sheet.appendChild(front);
+    sheet.appendChild(back);
+    bookEl.appendChild(sheet);
+    sheets.push(sheet);
+  }
+
+  currentSheet = 0;
+  updateButtons();
+}
+
+/* Navegación */
+function flipNext() {
+  if (currentSheet >= totalSheets) return;
+  const sheet = sheets[currentSheet];
+  sheet.classList.add("flipped");
+
+  // Cuando se voltea, mándala al fondo tras la animación para no tapar las siguientes
+  setTimeout(() => {
+    sheet.style.zIndex = String(10 + currentSheet); // menor z-index al fondo
+  }, 800);
+
+  currentSheet++;
+  updateButtons();
+}
+
+function flipPrev() {
+  if (currentSheet <= 0) return;
+  const sheet = sheets[currentSheet - 1];
+  sheet.classList.remove("flipped");
+
+  // Sube z-index para que vuelva a estar encima
+  sheet.style.zIndex = String(1000 - (currentSheet - 1));
+
+  currentSheet--;
+  updateButtons();
+}
+
+function updateButtons() {
+  btnPrev.disabled = currentSheet === 0;
+  btnNext.disabled = currentSheet === totalSheets;
+}
+
 /* Carga el PDF, convierte páginas a imágenes y crea el flipbook */
 async function init() {
   try {
-    const url = await resolvePdfUrl();
-    console.log("Usando PDF:", url);
+    // Comprobación rápida de existencia
+    const head = await fetch(PDF_URL, { method: "HEAD", cache: "no-store" });
+    const ct = (head.headers.get("content-type") || "").toLowerCase();
+    if (!head.ok || !ct.includes("pdf")) {
+      throw new Error("No se encontró magazine.pdf en la raíz o no es application/pdf.");
+    }
 
     const loadingTask = pdfjsLib.getDocument({
-      url,
+      url: PDF_URL,
       disableStream: true,
       disableAutoFetch: true
     });
     const pdf = await loadingTask.promise;
 
     const images = [];
-    let firstSize = { width: 800, height: 1100 };
+    // Render secuencial para uso de memoria contenido
+    const targetW = window.innerWidth > 1024 ? 1400 : 1000;
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const img = await renderPageToImage(page, window.innerWidth > 1024 ? 1400 : 1000);
+      const img = await renderPageToImage(page, targetW);
       images.push(img.dataUrl);
-      if (i === 1) firstSize = { width: img.width, height: img.height };
       await new Promise((r) => setTimeout(r, 0));
     }
 
-    const usePortrait = window.innerWidth < 900;
-    const flip = new St.PageFlip(flipbookEl, {
-      width: Math.min(firstSize.width, 900),
-      height: Math.min(firstSize.height, 1200),
-      size: "stretch",
-      minWidth: 315,
-      minHeight: 420,
-      maxWidth: 2400,
-      maxHeight: 3200,
-      showCover: false,
-      usePortrait,
-      autoSize: true,
-      mobileScrollSupport: true,
-      maxShadowOpacity: 0.3,
-      flippingTime: 650
+    buildFlipbook(images);
+
+    // Listeners
+    btnNext.addEventListener("click", flipNext);
+    btnPrev.addEventListener("click", flipPrev);
+
+    // Click zonas: derecha avanza, izquierda retrocede
+    bookEl.addEventListener("click", (e) => {
+      const rect = bookEl.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x > rect.width / 2) flipNext();
+      else flipPrev();
     });
 
-    flip.loadFromImages(images);
-    loaderEl.style.display = "none";
-
+    // Teclado
     document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowRight") flip.flipNext();
-      if (e.key === "ArrowLeft") flip.flipPrev();
+      if (e.key === "ArrowRight") flipNext();
+      if (e.key === "ArrowLeft") flipPrev();
     });
 
-    window.addEventListener("orientationchange", () => {
-      setTimeout(() => flip.update(), 250);
-    });
-    window.addEventListener("resize", () => {
-      clearTimeout(window.__flipResizeTimer);
-      window.__flipResizeTimer = setTimeout(() => flip.update(), 150);
-    });
+    // Oculta loader
+    loaderEl.style.display = "none";
   } catch (err) {
     console.error(err);
     loaderEl.style.display = "none";
