@@ -8,7 +8,6 @@
 }
 
 * { box-sizing: border-box; }
-
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -45,6 +44,12 @@ h1 {
   border-radius: 8px;
   font-weight: 600;
   border: 1px solid rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.btn.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 .viewer-wrapper {
@@ -55,15 +60,85 @@ h1 {
   padding: 10px;
   min-height: 60vh;
   display: grid;
+  gap: 8px;
   place-items: center;
   overflow: hidden;
 }
 
-.flipbook {
+/* Libro (flipbook) */
+.book {
+  position: relative;
   width: min(100%, 980px);
-  height: calc(100vh - 220px);
+  height: calc(100vh - 260px);
   max-height: 900px;
   aspect-ratio: 3 / 2;
+  perspective: 2000px;
+  border-radius: 10px;
+  overflow: visible;
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.35),
+    0 1px 0 1px rgba(255,255,255,0.03) inset,
+    0 0 0 1px rgba(255,255,255,0.04);
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.08), rgba(255,255,255,0.04) 50%, rgba(0,0,0,0.08)),
+    #0e1218;
+}
+
+/* “Hoja” (dos páginas: frente = derecha, dorso = izquierda) */
+.sheet {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 50%;
+  height: 100%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  transition: transform 0.8s ease;
+  will-change: transform;
+}
+
+/* Caras de la hoja */
+.face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  background: #ffffff;
+  border-left: 1px solid rgba(0,0,0,0.06);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    -6px 0 18px rgba(0,0,0,0.25);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.face img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.face.back {
+  transform: rotateY(180deg);
+  border-left: none;
+  border-right: 1px solid rgba(0,0,0,0.06);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    6px 0 18px rgba(0,0,0,0.25);
+}
+
+/* Estado al pasar página */
+.sheet.flipped {
+  transform: rotateY(-180deg);
+}
+
+/* Controles */
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
 }
 
 .loader {
@@ -92,20 +167,11 @@ h1 {
   font-size: 12px;
 }
 
-/* PageFlip tweaks */
-.stf__wrapper {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow:
-    0 10px 30px rgba(0,0,0,0.35),
-    0 1px 0 1px rgba(255,255,255,0.03) inset,
-    0 0 0 1px rgba(255,255,255,0.04);
-}
-
+/* Móvil: modo vertical (una página visible) */
 @media (max-width: 768px) {
-  .flipbook {
+  .book {
     width: 100%;
-    height: calc(100vh - 240px);
+    height: calc(100vh - 280px);
     aspect-ratio: 3 / 4;
   }
 }
