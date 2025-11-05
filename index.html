@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Revista</title>
-    <meta name="description" content="Revista con efecto de pasar página y descarga" />
+    <meta name="description" content="Revista con efecto de pasar página, zoom, miniaturas y navegación" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -12,29 +12,52 @@
     <main class="container">
       <header class="header">
         <h1>Revista</h1>
-        <a id="download" class="btn" href="magazine.pdf" download>Descargar PDF</a>
+        <div class="header-actions">
+          <button id="zoomOut" class="btn secondary" title="Alejar (−)">−</button>
+          <button id="zoomIn" class="btn secondary" title="Acercar (+)">+</button>
+          <a id="download" class="btn" href="magazine.pdf" download>Descargar PDF</a>
+        </div>
       </header>
 
       <section id="viewer-wrapper" class="viewer-wrapper">
-        <div id="book" class="book" aria-label="Visor de revista"></div>
+        <!-- Indicador de página -->
+        <div id="pageIndicator" class="page-indicator">Página 1/—</div>
 
+        <!-- Viewport con scroll para zoom en escritorio -->
+        <div id="viewport" class="viewport">
+          <div id="book" class="book" aria-label="Visor de revista (doble página)"></div>
+        </div>
+
+        <!-- Modo móvil: una sola página visible -->
+        <div id="single" class="single" hidden aria-label="Visor de revista (una página)"></div>
+
+        <!-- Botones grandes en bordes -->
+        <button id="edge-prev" class="edge edge-prev" aria-label="Anterior">‹</button>
+        <button id="edge-next" class="edge edge-next" aria-label="Siguiente">›</button>
+
+        <!-- Controles inferiores -->
         <div class="controls">
           <button id="prev" class="btn secondary" aria-label="Página anterior">← Anterior</button>
           <button id="next" class="btn" aria-label="Página siguiente">Siguiente →</button>
         </div>
 
+        <!-- Miniaturas -->
+        <div id="thumbs" class="thumbs" aria-label="Miniaturas de páginas"></div>
+
+        <!-- Estado -->
         <div id="loader" class="loader">Cargando revista…</div>
         <div id="error" class="error" hidden></div>
       </section>
 
       <footer class="footer">
-       
+        <small>
+          Doble clic/toque para zoom. Desliza en móvil para pasar página. 
+        </small>
       </footer>
     </main>
 
     <!-- PDF.js (visor); el worker lo configura app.js -->
     <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-    <!-- Carga tu script NUEVO con un parámetro para evitar caché -->
     <script src="./app.js?v=20251105"></script>
   </body>
 </html>
